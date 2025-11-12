@@ -1,1 +1,0 @@
-# Contador-V-1.2

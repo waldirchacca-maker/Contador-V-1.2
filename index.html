@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Registro Multisectorial — Tabla Interactiva</title>
+
+  <!-- XLSX for Excel export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f4f7fb; --card:#fff; --accent:#0d47a1; --accent-2:#1976d2; --muted:#6b7280;
+      --glass: rgba(255,255,255,0.6);
+      --success:#2e7d32;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#eef4ff 0%,var(--bg) 100%);
+      color:#0b1220;
+    }
+
+    header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      padding:18px 28px;
+      background:linear-gradient(90deg,var(--card),#f8fbff);
+      box-shadow:0 4px 18px rgba(8,24,48,0.06);
+      position:sticky; top:0; z-index:50;
+    }
+    header h1{font-size:18px; margin:0; color:var(--accent)}
+    header .sub{font-size:13px; color:var(--muted)}
+
+    .layout{
+      display:grid;
+      grid-template-columns: 320px 1fr 420px;
+      gap:18px;
+      padding:22px;
+      align-items:start;
+    }
+
+    /* SIDEBAR: sections & config */
+    .sidebar{
+      background:var(--card);
+      border-radius:12px;
+      padding:16px;
+      box-shadow:0 6px 20px rgba(16,24,40,0.04);
+      height:calc(100vh - 120px);
+      overflow:auto;
+    }
+    .section-list{display:flex;flex-direction:column;gap:8px}
+    .section-item{
+      display:flex;align-items:center;justify-content:space-between;
+      gap:8px;padding:8px;border-radius:8px;cursor:pointer;
+      transition:all .12s;
+    }
+    .section-item:hover{transform:translateY(-2px)}
+    .section-item.active{background:linear-gradient(90deg,var(--accent-2),#0d47a1); color:white}
+    .section-item button{background:transparent;border:0;color:var(--muted);cursor:pointer}
+
+    .small{font-size:13px;color:var(--muted)}
+    .controls{display:grid;gap:10px;margin-top:12px}
+
+    .card{
+      background:var(--card); padding:14px;border-radius:12px;
+      box-shadow:0 6px 20px rgba(16,24,40,0.04);
+    }
+
+    /* MAIN: registry panel */
+    main{
+      min-height:60vh;
+    }
+    .config-row{display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+    select, input[type="text"], input[type="time"]{
+      padding:8px 10px;border-radius:8px;border:1px solid #e6eefb;background:transparent;
+      min-width:160px; font-size:14px;
+    }
+    .btn{
+      padding:9px 12px;border-radius:9px;border:0;background:var(--accent-2);color:white;cursor:pointer;
+      font-weight:600;
+      transition: all 0.2s ease;
+    }
+    .btn:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .btn.ghost{background:transparent;color:var(--accent-2);border:1px solid rgba(13,71,161,0.12)}
+    .btn.danger{background:#c62828}
+    .btn.small{padding:6px 8px;font-size:13px}
+    
+    /* Tabla interactiva */
+    .interactive-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 6px 20px rgba(16,24,40,0.04);
+    }
+    .interactive-table th, 
+    .interactive-table td {
+      padding: 12px 8px;
+      text-align: center;
+      border: 1px solid #e6eefb;
+      transition: all 0.2s ease;
+    }
+    .interactive-table th {
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .interactive-table td {
+      background: #fafcff;
+      cursor: pointer;
+      font-weight: 500;
+      position: relative;
+    }
+    .interactive-table td:hover {
+      background: #e3f2fd;
+      transform: scale(1.05);
+    }
+    .interactive-table td:active {
+      transform: scale(0.95);
+    }
+    .interactive-table td.clicked {
+      background: #e8f5e8;
+      animation: pulse 0.3s ease;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+    .cell-value {
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    .cell-label {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    table{
+      width:100%;border-collapse:collapse;margin-top:12px;border-radius:8px;overflow:hidden;
+      box-shadow:0 6px 20px rgba(16,24,40,0.04)
+    }
+    th,td{padding:8px 10px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:13px}
+    th{background:var(--accent);color:white;font-weight:600}
+    tbody tr:nth-child(even){background:#fbfdff}
+    .muted{color:var(--muted)}
+    .flex{display:flex;gap:8px;align-items:center;justify-content:center}
+    .pill{background:#eef4ff;color:var(--accent);padding:6px 10px;border-radius:999px;font-weight:600}
+
+    /* RIGHT: Configuration panel */
+    .right{
+      height:calc(100vh - 120px);
+      overflow:auto;
+      position:relative;
+    }
+    .section-config{display:grid;gap:8px;margin-bottom:12px}
+    label{font-size:13px;color:#223}
+    .list-inline{display:flex;gap:8px;flex-wrap:wrap}
+    .type-item, .sense-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: #f1f8ff;
+      border-radius: 6px;
+      margin-bottom: 4px;
+    }
+    .sense-item {
+      background: #fff7ed;
+    }
+
+    footer{
+      padding:14px 22px;color:var(--muted);font-size:13px;text-align:center;
+    }
+
+    /* responsive */
+    @media (max-width:1100px){
+      .layout{grid-template-columns: 1fr; padding:14px}
+      .right{order:3}
+      header{flex-direction:column;align-items:flex-start;gap:8px}
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>Registro Multisectorial - Tabla Interactiva</h1>
+      <div class="sub">Sistema profesional: haga clic en las celdas para registrar conteos automáticamente</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn" id="exportAll">Exportar todo (Excel)</button>
+      <button class="btn ghost" id="backupBtn">Backup (JSON)</button>
+      <button class="btn ghost" id="restoreBtn">Restaurar</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT: Sections -->
+    <aside class="sidebar card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong>Secciones</strong>
+        <button class="btn small" id="addSectionBtn">+ Nueva</button>
+      </div>
+
+      <div class="section-list" id="sectionList"></div>
+
+      <div style="margin-top:12px" class="small muted">
+        Selecciona una sección para administrarla. Cada sección tiene sus propios tipos, sentidos, registros y conteos.
+      </div>
+
+      <hr style="margin:12px 0;border:none;border-top:1px solid #eef2ff">
+
+      <div style="display:grid;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Configuración rápida</strong><div class="small muted">Agregar tipo / sentido</div></div>
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <input id="quickType" placeholder="Nuevo tipo" />
+          <button class="btn small" id="quickAddType">Agregar</button>
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <input id="quickSense" placeholder="Nuevo sentido (ej. A)" />
+          <button class="btn small" id="quickAddSense">Agregar</button>
+        </div>
+      </div>
+
+      <hr style="margin:12px 0;border:none;border-top:1px solid #eef2ff">
+
+      <div>
+        <strong>Acciones rápidas</strong>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          <button class="btn small ghost" id="undoBtn">Deshacer último</button>
+          <button class="btn small ghost" id="clearSection">Vaciar sección</button>
+          <button class="btn small" id="exportSection">Exportar sección</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN: Interactive table and history -->
+    <main>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div>
+            <div class="small muted">Sección seleccionada</div>
+            <h2 id="selectedSectionTitle" style="margin:6px 0 0 0">—</h2>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div class="small muted">Fecha</div>
+            <input type="date" id="manualDate" />
+            <div class="small muted">Hora</div>
+            <input type="time" id="manualTime" />
+          </div>
+        </div>
+
+        <!-- Tabla interactiva -->
+        <div style="margin-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>Tabla de Conteo Interactiva</strong>
+            <div class="small muted">Haga clic en cualquier celda para registrar</div>
+          </div>
+          
+          <div id="interactiveTableContainer" style="margin-top:8px; overflow:auto;">
+            <!-- La tabla interactiva se generará aquí dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Historial de registros -->
+        <div style="margin-top:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>Historial de Registros</strong>
+            <div class="small muted">Registros realizados en esta sesión</div>
+          </div>
+
+          <table id="recordsTable" style="margin-top:8px">
+            <thead>
+              <tr>
+                <th>#</th><th>Tipo</th><th>Sentido</th><th>Fecha</th><th>Hora</th><th>Acción</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT: Section configuration -->
+    <aside class="right">
+      <div class="card section-config">
+        <strong>Configurar sección</strong>
+        <div class="small muted" id="sectionDesc">Seleccione una sección para ver y editar sus tipos y sentidos.</div>
+
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <label style="width:90px">Nombre</label>
+          <input id="sectionName" />
+          <button class="btn small" id="saveSectionName">Guardar</button>
+          <button class="btn small danger" id="deleteSectionBtn">Eliminar</button>
+        </div>
+
+        <hr>
+
+        <div>
+          <label>Tipos (elementos)</label>
+          <div id="typesList"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="newTypeInput" placeholder="Ej: AUTO / PEATON" />
+            <button class="btn small" id="addTypeBtn">Agregar tipo</button>
+          </div>
+        </div>
+
+        <hr>
+
+        <div>
+          <label>Sentidos</label>
+          <div id="senseList"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="newSenseInput" placeholder="Ej: A / B / Calle 1" />
+            <button class="btn small" id="addSenseBtn">Agregar sentido</button>
+          </div>
+        </div>
+
+        <hr>
+
+        <div>
+          <label>Exportar / backup sección</label>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn small" id="exportCsvSection">Exportar CSV</button>
+            <button class="btn small ghost" id="downloadJsonSection">Descargar JSON</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="card">
+        <strong>Guía rápida</strong>
+        <ol style="font-size:13px;padding-left:16px">
+          <li>Selecciona la sección (izquierda).</li>
+          <li>Haz clic en las celdas de la tabla para registrar automáticamente.</li>
+          <li>Usa la configuración (derecha) para añadir/quitar tipos o sentidos.</li>
+          <li>Exporta todo o por sección con los botones superiores.</li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+
+  <footer>Desarrollado profesionalmente — Interfaz editable y extensible. Datos guardados en el navegador (localStorage).</footer>
+
+  <script>
+    /*******************************************
+     * Estructura de datos en localStorage:
+     * storage = {
+     *   sections: {
+     *     <id>: {
+     *       id, name, types: [], senses: [], records: [ {id,type,sense,date,time,ts} ]
+     *     }, ...
+     *   },
+     *   selectedSectionId: <id>
+     * }
+     *******************************************/
+
+    const STORAGE_KEY = 'registro_multisectorial_v2';
+
+    // --- Helpers ---
+    const uid = () => Math.random().toString(36).slice(2,9);
+    const nowDateStr = (d=new Date()) => d.toLocaleDateString();
+    const nowTimeStr = (d=new Date()) => d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+
+    // Default app state
+    let state = {
+      sections: {},
+      selectedSectionId: null
+    };
+
+    // --- Inicialización con valores por defecto si no existe ---
+    function defaultSetup(){
+      // If no data in localStorage, create default sections
+      if (!Object.keys(state.sections).length){
+        const vehId = uid(), persId = uid();
+        state.sections[vehId] = {
+          id: vehId,
+          name: 'Vehículos',
+          types: ["MOTO LINEAL","AUTO","STATION WAGON","PICK UP","PANEL","RURAL COMBI","MICRO","BUS 2E","BUS ≥3E","CAMIÓN 2E","CAMIÓN 3E","CAMIÓN 4E","SEMI TRAILER 2S1/2S2","SEMI TRAILER 2S3","SEMI TRAILER 3S1/3S2","SEMI TRAILER ≥3S3","TRAILER 2T2","TRAILER 2T3","TRAILER 3T2","TRAILER ≥3T3"],
+          senses: ["A","B","C","D"],
+          records: []
+        };
+        state.sections[persId] = {
+          id: persId,
+          name: 'Personas',
+          types: ["PEATÓN","CICLISTA"],
+          senses: ["A","B","C","D"],
+          records: []
+        };
+        state.selectedSectionId = vehId;
+        saveState();
+      }
+    }
+
+    // --- Persistencia ---
+    function loadState(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) state = JSON.parse(raw);
+      }catch(e){
+        console.error('Error leyendo storage', e);
+      }
+    }
+    function saveState(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      renderAll();
+    }
+
+    // --- Render Panel Izquierdo (Secciones) ---
+    const sectionListEl = document.getElementById('sectionList');
+    function renderSections(){
+      sectionListEl.innerHTML = '';
+      const ids = Object.keys(state.sections);
+      ids.forEach(id=>{
+        const s = state.sections[id];
+        const div = document.createElement('div');
+        div.className = 'section-item' + (state.selectedSectionId===id ? ' active' : '');
+        div.onclick = ()=>{ 
+          state.selectedSectionId = id; 
+          saveState(); 
+        };
+        div.innerHTML = `<div style="display:flex;gap:12px;align-items:center">
+            <div style="width:10px;height:10px;border-radius:99px;background:${state.selectedSectionId===id? 'white':'#dbeafe'}"></div>
+            <div style="display:flex;flex-direction:column;align-items:flex-start">
+              <strong style="font-size:14px">${s.name}</strong>
+              <span class="small muted">${s.types.length} tipos · ${s.senses.length} sentidos · ${s.records.length} registros</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button title="Duplicar sección" onclick="evtStop(event); duplicateSection('${id}')">📄</button>
+            <button title="Descargar JSON" onclick="evtStop(event); downloadSectionJSON('${id}')">⬇️</button>
+            <button title="Eliminar sección" onclick="evtStop(event); confirmDeleteSection('${id}')">🗑️</button>
+          </div>`;
+        sectionListEl.appendChild(div);
+      });
+    }
+
+    // --- Helpers DOM stop propagation ---
+    function evtStop(e){ e.stopPropagation(); }
+
+    // --- Selección y panel central ---
+    const selectedSectionTitle = document.getElementById('selectedSectionTitle');
+    const sectionDesc = document.getElementById('sectionDesc');
+    const interactiveTableContainer = document.getElementById('interactiveTableContainer');
+    const manualDate = document.getElementById('manualDate');
+    const manualTime = document.getElementById('manualTime');
+    const recordsTbody = document.querySelector('#recordsTable tbody');
+
+    function getSelected(){
+      return state.sections[state.selectedSectionId] || null;
+    }
+
+    // --- Render Tabla Interactiva ---
+    function renderInteractiveTable(){
+      const s = getSelected();
+      interactiveTableContainer.innerHTML = '';
+      
+      if (!s) {
+        interactiveTableContainer.innerHTML = '<div class="small muted" style="text-align:center;padding:20px">Seleccione una sección para ver la tabla interactiva</div>';
+        return;
+      }
+
+      // Crear tabla
+      const table = document.createElement('table');
+      table.className = 'interactive-table';
+      
+      // Crear encabezado (sentidos)
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      
+      // Celda vacía en la esquina superior izquierda
+      const emptyHeader = document.createElement('th');
+      emptyHeader.textContent = 'Tipo \\ Sentido';
+      headerRow.appendChild(emptyHeader);
+      
+      // Encabezados de sentidos
+      s.senses.forEach(sense => {
+        const th = document.createElement('th');
+        th.textContent = sense;
+        headerRow.appendChild(th);
+      });
+      
+      // Total por fila
+      const totalHeader = document.createElement('th');
+      totalHeader.textContent = 'Total';
+      headerRow.appendChild(totalHeader);
+      
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      
+      // Crear cuerpo de la tabla
+      const tbody = document.createElement('tbody');
+      
+      // Calcular conteos actuales
+      const counts = calculateCurrentCounts(s);
+      
+      // Filas para cada tipo
+      s.types.forEach(type => {
+        const row = document.createElement('tr');
+        
+        // Celda de tipo (primera columna)
+        const typeCell = document.createElement('td');
+        typeCell.textContent = type;
+        typeCell.style.fontWeight = '600';
+        typeCell.style.background = '#f1f8ff';
+        row.appendChild(typeCell);
+        
+        let rowTotal = 0;
+        
+        // Celdas de conteo para cada sentido
+        s.senses.forEach(sense => {
+          const countCell = document.createElement('td');
+          const count = counts[sense] && counts[sense][type] ? counts[sense][type] : 0;
+          rowTotal += count;
+          
+          countCell.innerHTML = `
+            <div class="cell-value">${count}</div>
+            <div class="cell-label">${type} · ${sense}</div>
+          `;
+          
+          countCell.onclick = () => registerCount(type, sense);
+          row.appendChild(countCell);
+        });
+        
+        // Celda de total por fila
+        const totalCell = document.createElement('td');
+        totalCell.innerHTML = `
+          <div class="cell-value">${rowTotal}</div>
+          <div class="cell-label">Total ${type}</div>
+        `;
+        totalCell.style.fontWeight = 'bold';
+        totalCell.style.background = '#e8f5e8';
+        row.appendChild(totalCell);
+        
+        tbody.appendChild(row);
+      });
+      
+      // Fila de totales por columna
+      const totalsRow = document.createElement('tr');
+      const totalsLabel = document.createElement('td');
+      totalsLabel.textContent = 'Total';
+      totalsLabel.style.fontWeight = 'bold';
+      totalsLabel.style.background = '#e8f5e8';
+      totalsRow.appendChild(totalsLabel);
+      
+      let grandTotal = 0;
+      
+      s.senses.forEach(sense => {
+        const senseTotalCell = document.createElement('td');
+        let senseTotal = 0;
+        
+        s.types.forEach(type => {
+          const count = counts[sense] && counts[sense][type] ? counts[sense][type] : 0;
+          senseTotal += count;
+        });
+        
+        grandTotal += senseTotal;
+        
+        senseTotalCell.innerHTML = `
+          <div class="cell-value">${senseTotal}</div>
+          <div class="cell-label">Total ${sense}</div>
+        `;
+        senseTotalCell.style.fontWeight = 'bold';
+        senseTotalCell.style.background = '#e8f5e8';
+        totalsRow.appendChild(senseTotalCell);
+      });
+      
+      // Celda de gran total
+      const grandTotalCell = document.createElement('td');
+      grandTotalCell.innerHTML = `
+        <div class="cell-value">${grandTotal}</div>
+        <div class="cell-label">Total General</div>
+      `;
+      grandTotalCell.style.fontWeight = 'bold';
+      grandTotalCell.style.background = '#c8e6c9';
+      totalsRow.appendChild(grandTotalCell);
+      
+      tbody.appendChild(totalsRow);
+      table.appendChild(tbody);
+      interactiveTableContainer.appendChild(table);
+    }
+
+    // Calcular conteos actuales
+    function calculateCurrentCounts(section) {
+      const counts = {};
+      
+      // Inicializar estructura
+      section.senses.forEach(sense => {
+        counts[sense] = {};
+        section.types.forEach(type => {
+          counts[sense][type] = 0;
+        });
+      });
+      
+      // Contar registros
+      section.records.forEach(record => {
+        if (counts[record.sense] && counts[record.sense][record.type] !== undefined) {
+          counts[record.sense][record.type]++;
+        }
+      });
+      
+      return counts;
+    }
+
+    // Registrar conteo al hacer clic en celda
+    function registerCount(type, sense) {
+      const s = getSelected();
+      if (!s) return;
+      
+      const date = manualDate.value || nowDateStr();
+      const time = manualTime.value || nowTimeStr();
+      
+      s.records.push({ 
+        id: uid(), 
+        type, 
+        sense, 
+        date, 
+        time, 
+        ts: Date.now() 
+      });
+      
+      saveState();
+      flash(`Registrado: ${type} · ${sense}`, 800);
+      
+      // Efecto visual en la celda clickeada
+      const cells = document.querySelectorAll('.interactive-table td');
+      cells.forEach(cell => {
+        if (cell.textContent.includes(type) && cell.textContent.includes(sense)) {
+          cell.classList.add('clicked');
+          setTimeout(() => cell.classList.remove('clicked'), 300);
+        }
+      });
+    }
+
+    function renderMainPanel(){
+      const s = getSelected();
+      if (!s){
+        selectedSectionTitle.textContent = '—';
+        sectionDesc.textContent = 'Seleccione una sección...';
+        recordsTbody.innerHTML = '';
+        return;
+      }
+      selectedSectionTitle.textContent = s.name;
+      sectionDesc.textContent = `Edite tipos y sentidos para la sección "${s.name}".`;
+
+      // Default manual date/time to now
+      const now = new Date();
+      manualDate.value = now.toISOString().slice(0,10);
+      manualTime.value = now.toTimeString().slice(0,8);
+
+      // Records table
+      recordsTbody.innerHTML = '';
+      // Mostrar solo los últimos 20 registros para no saturar
+      const recentRecords = s.records.slice(-20).reverse();
+      recentRecords.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        const actualIndex = s.records.length - idx;
+        tr.innerHTML = `<td>${actualIndex}</td>
+                        <td>${r.type}</td>
+                        <td>${r.sense}</td>
+                        <td>${r.date}</td>
+                        <td>${r.time}</td>
+                        <td class="flex">
+                          <button class="btn small ghost" onclick="evtStop(event); deleteRecord('${s.id}', ${s.records.indexOf(r)})">Eliminar</button>
+                        </td>`;
+        recordsTbody.appendChild(tr);
+      });
+
+      renderInteractiveTable();
+    }
+
+    // --- Configuración de sección (derecha) ---
+    const sectionNameInput = document.getElementById('sectionName');
+    const saveSectionNameBtn = document.getElementById('saveSectionName');
+    const deleteSectionBtn = document.getElementById('deleteSectionBtn');
+    const typesListEl = document.getElementById('typesList');
+    const senseListEl = document.getElementById('senseList');
+    const newTypeInput = document.getElementById('newTypeInput');
+    const addTypeBtn = document.getElementById('addTypeBtn');
+    const newSenseInput = document.getElementById('newSenseInput');
+    const addSenseBtn = document.getElementById('addSenseBtn');
+
+    function renderSectionConfig(){
+      const s = getSelected();
+      if (!s){
+        sectionNameInput.value = '';
+        typesListEl.innerHTML = '';
+        senseListEl.innerHTML = '';
+        return;
+      }
+      sectionNameInput.value = s.name;
+
+      // Types
+      typesListEl.innerHTML = '';
+      s.types.forEach((t, i) => {
+        const div = document.createElement('div');
+        div.className = 'type-item';
+        div.innerHTML = `
+          <span style="font-weight:600">${t}</span>
+          <button class="btn small ghost" onclick="evtStop(event); deleteType(${i})">Eliminar</button>
+        `;
+        typesListEl.appendChild(div);
+      });
+
+      // Senses
+      senseListEl.innerHTML = '';
+      s.senses.forEach((sen, i) => {
+        const div = document.createElement('div');
+        div.className = 'sense-item';
+        div.innerHTML = `
+          <strong>${sen}</strong>
+          <button class="btn small ghost" onclick="evtStop(event); deleteSense(${i})">Eliminar</button>
+        `;
+        senseListEl.appendChild(div);
+      });
+    }
+
+    // Funciones para eliminar tipos y sentidos
+    function deleteType(index) {
+      const s = getSelected();
+      if (!s) return;
+      if (confirm('¿Eliminar tipo? Se perderán conteos asociados.')) {
+        s.types.splice(index, 1);
+        saveState();
+      }
+    }
+
+    function deleteSense(index) {
+      const s = getSelected();
+      if (!s) return;
+      if (confirm('¿Eliminar sentido? Se perderán conteos asociados.')) {
+        s.senses.splice(index, 1);
+        saveState();
+      }
+    }
+
+    saveSectionNameBtn.addEventListener('click', ()=> {
+      const s = getSelected();
+      if (!s) return;
+      const v = sectionNameInput.value.trim();
+      if (!v) return alert('Nombre inválido');
+      s.name = v; saveState();
+    });
+
+    addTypeBtn.addEventListener('click', ()=> {
+      const s = getSelected(); if(!s) return;
+      const t = newTypeInput.value.trim();
+      if(!t) return alert('Ingrese un tipo válido');
+      if (s.types.includes(t)) return alert('Tipo ya existe');
+      s.types.push(t); newTypeInput.value=''; saveState();
+    });
+
+    addSenseBtn.addEventListener('click', ()=> {
+      const s = getSelected(); if(!s) return;
+      const t = newSenseInput.value.trim();
+      if(!t) return alert('Ingrese un sentido válido');
+      if (s.senses.includes(t)) return alert('Sentido ya existe');
+      s.senses.push(t); newSenseInput.value=''; saveState();
+    });
+
+    // Deshacer (eliminar último)
+    document.getElementById('undoBtn').addEventListener('click', ()=> {
+      const s = getSelected();
+      if (!s) return;
+      if (s.records.length === 0) return;
+      s.records.pop();
+      saveState();
+      flash('Último registro eliminado', 800);
+    });
+
+    // Eliminar registro específico
+    window.deleteRecord = function(sectionId, index){
+      const sec = state.sections[sectionId];
+      if (!sec) return;
+      if (!confirm('Eliminar registro seleccionado?')) return;
+      sec.records.splice(index,1);
+      saveState();
+    };
+
+    // Vaciar sección
+    document.getElementById('clearSection').addEventListener('click', ()=> {
+      const s = getSelected();
+      if (!s) return;
+      if (!confirm(`¿Vaciar todos los registros de "${s.name}"?`)) return;
+      s.records = [];
+      saveState();
+      flash('Sección vaciada', 1200);
+    });
+
+    // Quick add buttons in left sidebar
+    document.getElementById('quickAddType').addEventListener('click', ()=> {
+      const val = document.getElementById('quickType').value.trim();
+      if (!val) return alert('Ingrese tipo');
+      const s = getSelected(); if(!s) return alert('Seleccione sección');
+      if (s.types.includes(val)) return alert('Tipo ya existe');
+      s.types.push(val); 
+      document.getElementById('quickType').value=''; 
+      saveState();
+    });
+    
+    document.getElementById('quickAddSense').addEventListener('click', ()=> {
+      const val = document.getElementById('quickSense').value.trim();
+      if (!val) return alert('Ingrese sentido');
+      const s = getSelected(); if(!s) return alert('Seleccione sección');
+      if (s.senses.includes(val)) return alert('Sentido ya existe');
+      s.senses.push(val); 
+      document.getElementById('quickSense').value=''; 
+      saveState();
+    });
+
+    // Add new section
+    document.getElementById('addSectionBtn').addEventListener('click', ()=> {
+      const name = prompt('Nombre de la nueva sección (ej: Personas, Bicicletas, Otros):');
+      if(!name) return;
+      const id = uid();
+      state.sections[id] = { 
+        id, 
+        name, 
+        types: ['TIPO 1', 'TIPO 2'], 
+        senses: ['A', 'B'], 
+        records: [] 
+      };
+      state.selectedSectionId = id;
+      saveState();
+    });
+
+    // Duplicate section
+    function duplicateSection(id){
+      const src = state.sections[id];
+      if(!src) return;
+      const n = prompt('Nombre para la copia', src.name + ' - copia');
+      if (!n) return;
+      const nid = uid();
+      state.sections[nid] = { 
+        id: nid, 
+        name: n, 
+        types: [...src.types], 
+        senses: [...src.senses], 
+        records: [...src.records] 
+      };
+      state.selectedSectionId = nid; 
+      saveState();
+    }
+
+    // Delete section with confirm
+    function confirmDeleteSection(id){
+      if (!confirm('¿Eliminar sección y todos sus registros? Esta acción es irreversible.')) return;
+      delete state.sections[id];
+      // pick another selection
+      const keys = Object.keys(state.sections);
+      state.selectedSectionId = keys.length ? keys[0] : null;
+      saveState();
+    }
+
+    // Download section JSON
+    function downloadSectionJSON(id){
+      const sec = state.sections[id];
+      if(!sec) return;
+      const blob = new Blob([JSON.stringify(sec, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; 
+      a.download = `${sec.name.replace(/\s+/g,'_')}_section.json`;
+      document.body.appendChild(a); 
+      a.click(); 
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Delete current section (button)
+    deleteSectionBtn.addEventListener('click', ()=> {
+      const s = getSelected();
+      if(!s) return;
+      if (!confirm(`Eliminar sección "${s.name}"?`)) return;
+      delete state.sections[s.id];
+      const keys = Object.keys(state.sections);
+      state.selectedSectionId = keys.length ? keys[0] : null;
+      saveState();
+    });
+
+    // Export CSV for section
+    document.getElementById('exportCsvSection').addEventListener('click', ()=> {
+      const s = getSelected(); if(!s) return;
+      const rows = [['#','Tipo','Sentido','Fecha','Hora']];
+      s.records.forEach((r,i)=> rows.push([i+1, r.type, r.sense, r.date, r.time]));
+      const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${s.name.replace(/\s+/g,'_')}_registros.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+
+    // Download section JSON (button)
+    document.getElementById('downloadJsonSection').addEventListener('click', ()=> {
+      const s = getSelected(); if(!s) return;
+      downloadSectionJSON(s.id);
+    });
+
+    // Export section to Excel
+    document.getElementById('exportSection').addEventListener('click', ()=> {
+      const s = getSelected(); if(!s) return;
+      exportSectionToExcel(s);
+    });
+
+    // Export all sections to Excel
+    document.getElementById('exportAll').addEventListener('click', ()=> {
+      exportAllToExcel();
+    });
+
+    // Backup / restore UI
+    document.getElementById('backupBtn').addEventListener('click', ()=> {
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); 
+      a.download = `backup_registro_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a); 
+      a.click(); 
+      a.remove();
+    });
+
+    document.getElementById('restoreBtn').addEventListener('click', ()=> {
+      const input = document.createElement('input'); 
+      input.type='file'; 
+      input.accept='application/json';
+      input.onchange = ()=> {
+        const f = input.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = e=> {
+          try{
+            const data = JSON.parse(e.target.result);
+            if (confirm('¿Restaurar backup (reemplazará los datos actuales)?')) {
+              state = data; 
+              saveState();
+              flash('Backup restaurado correctamente', 1500);
+            }
+          }catch(err){ 
+            alert('Error: Archivo JSON inválido'); 
+          }
+        };
+        reader.readAsText(f);
+      };
+      input.click();
+    });
+
+    // Export helpers using XLSX
+    function exportSectionToExcel(s){
+      // Crear libro de trabajo
+      const wb = XLSX.utils.book_new();
+      
+      // HOJA 1: TABLA DE CONTEO
+      const counts = calculateCurrentCounts(s);
+      
+      // Crear datos para la tabla de conteo
+      const countData = [
+        [`REPORTE DE CONTEO - ${s.name}`],
+        [`Fecha de generación: ${new Date().toLocaleDateString()}`],
+        [],
+        ['TABLA DE CONTEO POR TIPO Y SENTIDO'],
+        [],
+        ['Tipo \\ Sentido', ...s.senses, 'TOTAL']
+      ];
+      
+      let grandTotal = 0;
+      
+      // Agregar filas de tipos
+      s.types.forEach(type => {
+        const row = [type];
+        let rowTotal = 0;
+        
+        s.senses.forEach(sense => {
+          const count = counts[sense] && counts[sense][type] ? counts[sense][type] : 0;
+          row.push(count);
+          rowTotal += count;
+        });
+        
+        row.push(rowTotal);
+        grandTotal += rowTotal;
+        countData.push(row);
+      });
+      
+      // Agregar fila de totales
+      const totalsRow = ['TOTAL'];
+      s.senses.forEach(sense => {
+        let senseTotal = 0;
+        s.types.forEach(type => {
+          const count = counts[sense] && counts[sense][type] ? counts[sense][type] : 0;
+          senseTotal += count;
+        });
+        totalsRow.push(senseTotal);
+      });
+      totalsRow.push(grandTotal);
+      countData.push(totalsRow);
+      
+      // Agregar resumen
+      countData.push([]);
+      countData.push(['RESUMEN GENERAL']);
+      countData.push([`Total de registros: ${grandTotal}`]);
+      countData.push([`Tipos monitoreados: ${s.types.length}`]);
+      countData.push([`Sentidos monitoreados: ${s.senses.length}`]);
+      
+      const countWs = XLSX.utils.aoa_to_sheet(countData);
+      XLSX.utils.book_append_sheet(wb, countWs, "Tabla de Conteo");
+      
+      // HOJA 2: HISTORIAL DE REGISTROS
+      const historyData = [
+        [`HISTORIAL DE REGISTROS - ${s.name}`],
+        [`Fecha de generación: ${new Date().toLocaleDateString()}`],
+        [],
+        ['#', 'Tipo', 'Sentido', 'Fecha', 'Hora', 'Timestamp']
+      ];
+      
+      s.records.forEach((record, index) => {
+        historyData.push([
+          index + 1,
+          record.type,
+          record.sense,
+          record.date,
+          record.time,
+          new Date(record.ts).toLocaleString()
+        ]);
+      });
+      
+      // Agregar resumen al historial
+      historyData.push([]);
+      historyData.push(['RESUMEN DEL HISTORIAL']);
+      historyData.push([`Total de registros: ${s.records.length}`]);
+      historyData.push([`Período: ${s.records.length > 0 ? 
+        `${s.records[0].date} a ${s.records[s.records.length-1].date}` : 
+        'Sin registros'}`]);
+      
+      const historyWs = XLSX.utils.aoa_to_sheet(historyData);
+      XLSX.utils.book_append_sheet(wb, historyWs, "Historial");
+      
+      // Aplicar formato profesional
+      // Nota: XLSX.js tiene capacidades limitadas de formato, pero podemos ajustar anchos de columna
+      if (countWs['!cols'] === undefined) countWs['!cols'] = [];
+      if (historyWs['!cols'] === undefined) historyWs['!cols'] = [];
+      
+      // Ajustar anchos de columna para mejor presentación
+      countWs['!cols'][0] = { wch: 25 }; // Columna de tipos más ancha
+      for (let i = 1; i <= s.senses.length + 1; i++) {
+        countWs['!cols'][i] = { wch: 12 };
+      }
+      
+      historyWs['!cols'][0] = { wch: 8 };  // #
+      historyWs['!cols'][1] = { wch: 20 }; // Tipo
+      historyWs['!cols'][2] = { wch: 12 }; // Sentido
+      historyWs['!cols'][3] = { wch: 12 }; // Fecha
+      historyWs['!cols'][4] = { wch: 10 }; // Hora
+      historyWs['!cols'][5] = { wch: 20 }; // Timestamp
+      
+      XLSX.writeFile(wb, `${s.name.replace(/\s+/g,'_')}_Reporte_Profesional.xlsx`);
+    }
+
+    function exportAllToExcel(){
+      const wb = XLSX.utils.book_new();
+      
+      Object.values(state.sections).forEach(s => {
+        // HOJA DE CONTEO PARA CADA SECCIÓN
+        const counts = calculateCurrentCounts(s);
+        const countData = [
+          [`REPORTE DE CONTEO - ${s.name}`],
+          [`Fecha de generación: ${new Date().toLocaleDateString()}`],
+          [],
+          ['TABLA DE CONTEO POR TIPO Y SENTIDO'],
+          [],
+          ['Tipo \\ Sentido', ...s.senses, 'TOTAL']
+        ];
+        
+        let grandTotal = 0;
+        
+        s.types.forEach(type => {
+          const row = [type];
+          let rowTotal = 0;
+          
+          s.senses.forEach(sense => {
+            const count = counts[sense] && counts[sense][type] ? counts[sense][type] : 0;
+            row.push(count);
+            rowTotal += count;
+          });
+          
+          row.push(rowTotal);
+          grandTotal += rowTotal;
+          countData.push(row);
+        });
+        
+        const totalsRow = ['TOTAL'];
+        s.senses.forEach(sense => {
+          let senseTotal = 0;
+          s.types.forEach(type => {
+            const count = counts[sense] && counts[sense][type] ? counts[sense][type] : 0;
+            senseTotal += count;
+          });
+          totalsRow.push(senseTotal);
+        });
+        totalsRow.push(grandTotal);
+        countData.push(totalsRow);
+        
+        countData.push([]);
+        countData.push(['RESUMEN GENERAL']);
+        countData.push([`Total de registros: ${grandTotal}`]);
+        countData.push([`Tipos monitoreados: ${s.types.length}`]);
+        countData.push([`Sentidos monitoreados: ${s.senses.length}`]);
+        
+        const countWs = XLSX.utils.aoa_to_sheet(countData);
+        
+        // Ajustar anchos de columna
+        if (countWs['!cols'] === undefined) countWs['!cols'] = [];
+        countWs['!cols'][0] = { wch: 25 };
+        for (let i = 1; i <= s.senses.length + 1; i++) {
+          countWs['!cols'][i] = { wch: 12 };
+        }
+        
+        XLSX.utils.book_append_sheet(wb, countWs, `${s.name.substring(0,25)} Conteo`);
+        
+        // HOJA DE HISTORIAL PARA CADA SECCIÓN
+        const historyData = [
+          [`HISTORIAL DE REGISTROS - ${s.name}`],
+          [`Fecha de generación: ${new Date().toLocaleDateString()}`],
+          [],
+          ['#', 'Tipo', 'Sentido', 'Fecha', 'Hora', 'Timestamp']
+        ];
+        
+        s.records.forEach((record, index) => {
+          historyData.push([
+            index + 1,
+            record.type,
+            record.sense,
+            record.date,
+            record.time,
+            new Date(record.ts).toLocaleString()
+          ]);
+        });
+        
+        historyData.push([]);
+        historyData.push(['RESUMEN DEL HISTORIAL']);
+        historyData.push([`Total de registros: ${s.records.length}`]);
+        
+        const historyWs = XLSX.utils.aoa_to_sheet(historyData);
+        
+        // Ajustar anchos de columna
+        if (historyWs['!cols'] === undefined) historyWs['!cols'] = [];
+        historyWs['!cols'][0] = { wch: 8 };
+        historyWs['!cols'][1] = { wch: 20 };
+        historyWs['!cols'][2] = { wch: 12 };
+        historyWs['!cols'][3] = { wch: 12 };
+        historyWs['!cols'][4] = { wch: 10 };
+        historyWs['!cols'][5] = { wch: 20 };
+        
+        XLSX.utils.book_append_sheet(wb, historyWs, `${s.name.substring(0,25)} Historial`);
+      });
+      
+      XLSX.writeFile(wb, `Reporte_Multisectorial_Completo_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
+    // Small toast / flash message
+    function flash(msg, timeout=1200){
+      const el = document.createElement('div');
+      el.textContent = msg;
+      el.style.position = 'fixed';
+      el.style.left = '50%';
+      el.style.top = '24px';
+      el.style.transform = 'translateX(-50%)';
+      el.style.background = 'rgba(13,71,161,0.95)';
+      el.style.color = 'white';
+      el.style.padding = '10px 14px';
+      el.style.borderRadius = '8px';
+      el.style.zIndex = 9999;
+      el.style.boxShadow = '0 6px 20px rgba(8,24,48,0.12)';
+      document.body.appendChild(el);
+      setTimeout(()=> { 
+        el.style.transition = 'opacity .25s'; 
+        el.style.opacity = '0'; 
+        setTimeout(()=>el.remove(),250); 
+      }, timeout);
+    }
+
+    // --- Utils: save & render all --- 
+    function renderAll(){
+      renderSections();
+      renderMainPanel();
+      renderSectionConfig();
+    }
+
+    // Ensure at least one section exists
+    function ensureAtLeastOneSection(){
+      if (!Object.keys(state.sections).length){
+        const id = uid();
+        state.sections[id] = { 
+          id, 
+          name: 'Vehículos', 
+          types: ['AUTO', 'MOTO'], 
+          senses: ['A','B','C','D'], 
+          records: [] 
+        };
+        state.selectedSectionId = id;
+        saveState();
+      }
+    }
+
+    // Keyboard shortcut: Ctrl+Z for undo
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='z'){
+        e.preventDefault();
+        const s = getSelected();
+        if (!s) return;
+        if (s.records.length === 0) return;
+        s.records.pop();
+        saveState();
+        flash('Deshecho (último eliminado)', 900);
+      }
+    });
+
+    // --- Initial load ---
+    loadState();
+    defaultSetup();
+    ensureAtLeastOneSection();
+    renderAll();
+
+    // Expose some functions to window for inline onclick used in markup
+    window.duplicateSection = duplicateSection;
+    window.downloadSectionJSON = downloadSectionJSON;
+    window.confirmDeleteSection = confirmDeleteSection;
+    window.deleteType = deleteType;
+    window.deleteSense = deleteSense;
+
+    // Make sure UI updates when local storage is manually changed in other tab
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY){
+        loadState();
+        renderAll();
+      }
+    });
+
+    /***** FIN DEL SCRIPT *****/
+  </script>
+</body>
+</html>
