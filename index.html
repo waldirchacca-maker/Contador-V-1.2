@@ -373,7 +373,7 @@
      * }
      *******************************************/
 
-    const STORAGE_KEY = 'registro_multisectorial_v2';
+    const STORAGE_KEY = 'registro_multisectorial_v3';
 
     // --- Helpers ---
     const uid = () => Math.random().toString(36).slice(2,9);
@@ -962,27 +962,32 @@
       input.click();
     });
 
-    // Export helpers using XLSX
+    // Export helpers using XLSX - MEJORADO: Una sola hoja con tabla arriba e historial abajo
     function exportSectionToExcel(s){
       // Crear libro de trabajo
       const wb = XLSX.utils.book_new();
       
-      // HOJA 1: TABLA DE CONTEO
+      // Datos para la hoja única
+      const excelData = [];
+      
+      // --- ENCABEZADO DEL REPORTE ---
+      excelData.push([`REPORTE DE CONTEO - ${s.name.toUpperCase()}`]);
+      excelData.push([`Fecha de generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`]);
+      excelData.push([]);
+      
+      // --- TABLA DE CONTEO (ARRIBA) ---
+      excelData.push(['TABLA DE CONTEO POR TIPO Y SENTIDO']);
+      excelData.push([]);
+      
+      // Encabezado de la tabla (sentidos en columnas)
+      const headerRow = ['TIPO \\ SENTIDO', ...s.senses, 'TOTAL'];
+      excelData.push(headerRow);
+      
+      // Calcular conteos
       const counts = calculateCurrentCounts(s);
-      
-      // Crear datos para la tabla de conteo
-      const countData = [
-        [`REPORTE DE CONTEO - ${s.name}`],
-        [`Fecha de generación: ${new Date().toLocaleDateString()}`],
-        [],
-        ['TABLA DE CONTEO POR TIPO Y SENTIDO'],
-        [],
-        ['Tipo \\ Sentido', ...s.senses, 'TOTAL']
-      ];
-      
       let grandTotal = 0;
       
-      // Agregar filas de tipos
+      // Filas de tipos con sus conteos
       s.types.forEach(type => {
         const row = [type];
         let rowTotal = 0;
@@ -995,10 +1000,10 @@
         
         row.push(rowTotal);
         grandTotal += rowTotal;
-        countData.push(row);
+        excelData.push(row);
       });
       
-      // Agregar fila de totales
+      // Fila de totales por sentido
       const totalsRow = ['TOTAL'];
       s.senses.forEach(sense => {
         let senseTotal = 0;
@@ -1009,28 +1014,33 @@
         totalsRow.push(senseTotal);
       });
       totalsRow.push(grandTotal);
-      countData.push(totalsRow);
+      excelData.push(totalsRow);
       
-      // Agregar resumen
-      countData.push([]);
-      countData.push(['RESUMEN GENERAL']);
-      countData.push([`Total de registros: ${grandTotal}`]);
-      countData.push([`Tipos monitoreados: ${s.types.length}`]);
-      countData.push([`Sentidos monitoreados: ${s.senses.length}`]);
+      // --- RESUMEN DE LA TABLA ---
+      excelData.push([]);
+      excelData.push(['RESUMEN DE CONTEO']);
+      excelData.push([`Total general de registros: ${grandTotal}`]);
+      excelData.push([`Cantidad de tipos monitoreados: ${s.types.length}`]);
+      excelData.push([`Cantidad de sentidos monitoreados: ${s.senses.length}`]);
+      excelData.push([`Fecha del primer registro: ${s.records.length > 0 ? s.records[0].date : 'N/A'}`]);
+      excelData.push([`Fecha del último registro: ${s.records.length > 0 ? s.records[s.records.length-1].date : 'N/A'}`]);
       
-      const countWs = XLSX.utils.aoa_to_sheet(countData);
-      XLSX.utils.book_append_sheet(wb, countWs, "Tabla de Conteo");
+      // --- ESPACIO ENTRE TABLA E HISTORIAL ---
+      excelData.push([]);
+      excelData.push([]);
+      excelData.push([]);
       
-      // HOJA 2: HISTORIAL DE REGISTROS
-      const historyData = [
-        [`HISTORIAL DE REGISTROS - ${s.name}`],
-        [`Fecha de generación: ${new Date().toLocaleDateString()}`],
-        [],
-        ['#', 'Tipo', 'Sentido', 'Fecha', 'Hora', 'Timestamp']
-      ];
+      // --- HISTORIAL DE REGISTROS (ABAJO) ---
+      excelData.push(['HISTORIAL DETALLADO DE REGISTROS']);
+      excelData.push([]);
       
+      // Encabezado del historial
+      const historyHeader = ['#', 'TIPO', 'SENTIDO', 'FECHA', 'HORA', 'TIMESTAMP'];
+      excelData.push(historyHeader);
+      
+      // Datos del historial (mostrar todos los registros)
       s.records.forEach((record, index) => {
-        historyData.push([
+        excelData.push([
           index + 1,
           record.type,
           record.sense,
@@ -1040,53 +1050,90 @@
         ]);
       });
       
-      // Agregar resumen al historial
-      historyData.push([]);
-      historyData.push(['RESUMEN DEL HISTORIAL']);
-      historyData.push([`Total de registros: ${s.records.length}`]);
-      historyData.push([`Período: ${s.records.length > 0 ? 
-        `${s.records[0].date} a ${s.records[s.records.length-1].date}` : 
-        'Sin registros'}`]);
+      // --- RESUMEN DEL HISTORIAL ---
+      excelData.push([]);
+      excelData.push(['RESUMEN DEL HISTORIAL']);
+      excelData.push([`Total de registros en el historial: ${s.records.length}`]);
       
-      const historyWs = XLSX.utils.aoa_to_sheet(historyData);
-      XLSX.utils.book_append_sheet(wb, historyWs, "Historial");
-      
-      // Aplicar formato profesional
-      // Nota: XLSX.js tiene capacidades limitadas de formato, pero podemos ajustar anchos de columna
-      if (countWs['!cols'] === undefined) countWs['!cols'] = [];
-      if (historyWs['!cols'] === undefined) historyWs['!cols'] = [];
-      
-      // Ajustar anchos de columna para mejor presentación
-      countWs['!cols'][0] = { wch: 25 }; // Columna de tipos más ancha
-      for (let i = 1; i <= s.senses.length + 1; i++) {
-        countWs['!cols'][i] = { wch: 12 };
+      if (s.records.length > 0) {
+        const firstRecord = s.records[0];
+        const lastRecord = s.records[s.records.length-1];
+        excelData.push([`Período cubierto: ${firstRecord.date} ${firstRecord.time} - ${lastRecord.date} ${lastRecord.time}`]);
+        
+        // Conteo por tipo
+        const typeCounts = {};
+        s.records.forEach(record => {
+          typeCounts[record.type] = (typeCounts[record.type] || 0) + 1;
+        });
+        
+        excelData.push([]);
+        excelData.push(['DISTRIBUCIÓN POR TIPO:']);
+        Object.entries(typeCounts).forEach(([type, count]) => {
+          excelData.push([`${type}: ${count} registros (${((count/s.records.length)*100).toFixed(1)}%)`]);
+        });
+        
+        // Conteo por sentido
+        const senseCounts = {};
+        s.records.forEach(record => {
+          senseCounts[record.sense] = (senseCounts[record.sense] || 0) + 1;
+        });
+        
+        excelData.push([]);
+        excelData.push(['DISTRIBUCIÓN POR SENTIDO:']);
+        Object.entries(senseCounts).forEach(([sense, count]) => {
+          excelData.push([`Sentido ${sense}: ${count} registros (${((count/s.records.length)*100).toFixed(1)}%)`]);
+        });
       }
       
-      historyWs['!cols'][0] = { wch: 8 };  // #
-      historyWs['!cols'][1] = { wch: 20 }; // Tipo
-      historyWs['!cols'][2] = { wch: 12 }; // Sentido
-      historyWs['!cols'][3] = { wch: 12 }; // Fecha
-      historyWs['!cols'][4] = { wch: 10 }; // Hora
-      historyWs['!cols'][5] = { wch: 20 }; // Timestamp
+      // Crear hoja de cálculo
+      const ws = XLSX.utils.aoa_to_sheet(excelData);
       
-      XLSX.writeFile(wb, `${s.name.replace(/\s+/g,'_')}_Reporte_Profesional.xlsx`);
+      // Aplicar formatos de columna para mejor presentación
+      if (ws['!cols'] === undefined) ws['!cols'] = [];
+      
+      // Ajustar anchos de columna
+      ws['!cols'][0] = { wch: 25 }; // Columna de tipos
+      for (let i = 1; i <= s.senses.length; i++) {
+        ws['!cols'][i] = { wch: 12 }; // Columnas de sentidos
+      }
+      ws['!cols'][s.senses.length + 1] = { wch: 12 }; // Columna TOTAL
+      
+      // Para el historial
+      const historyStartCol = 0;
+      const historyCols = ['#', 'TIPO', 'SENTIDO', 'FECHA', 'HORA', 'TIMESTAMP'];
+      historyCols.forEach((_, i) => {
+        const colIndex = historyStartCol + i;
+        ws['!cols'][colIndex] = { 
+          wch: i === 0 ? 8 : i === 1 ? 20 : i === 2 ? 12 : i === 3 ? 12 : i === 4 ? 10 : 20 
+        };
+      });
+      
+      // Agregar hoja al libro
+      XLSX.utils.book_append_sheet(wb, ws, `${s.name.substring(0,25)}`);
+      
+      // Guardar archivo
+      XLSX.writeFile(wb, `${s.name.replace(/\s+/g,'_')}_Reporte_Completo.xlsx`);
     }
 
     function exportAllToExcel(){
       const wb = XLSX.utils.book_new();
       
       Object.values(state.sections).forEach(s => {
-        // HOJA DE CONTEO PARA CADA SECCIÓN
-        const counts = calculateCurrentCounts(s);
-        const countData = [
-          [`REPORTE DE CONTEO - ${s.name}`],
-          [`Fecha de generación: ${new Date().toLocaleDateString()}`],
-          [],
-          ['TABLA DE CONTEO POR TIPO Y SENTIDO'],
-          [],
-          ['Tipo \\ Sentido', ...s.senses, 'TOTAL']
-        ];
+        const excelData = [];
         
+        // --- ENCABEZADO ---
+        excelData.push([`REPORTE DE CONTEO - ${s.name.toUpperCase()}`]);
+        excelData.push([`Fecha de generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`]);
+        excelData.push([]);
+        
+        // --- TABLA DE CONTEO ---
+        excelData.push(['TABLA DE CONTEO POR TIPO Y SENTIDO']);
+        excelData.push([]);
+        
+        const headerRow = ['TIPO \\ SENTIDO', ...s.senses, 'TOTAL'];
+        excelData.push(headerRow);
+        
+        const counts = calculateCurrentCounts(s);
         let grandTotal = 0;
         
         s.types.forEach(type => {
@@ -1101,7 +1148,7 @@
           
           row.push(rowTotal);
           grandTotal += rowTotal;
-          countData.push(row);
+          excelData.push(row);
         });
         
         const totalsRow = ['TOTAL'];
@@ -1114,60 +1161,41 @@
           totalsRow.push(senseTotal);
         });
         totalsRow.push(grandTotal);
-        countData.push(totalsRow);
+        excelData.push(totalsRow);
         
-        countData.push([]);
-        countData.push(['RESUMEN GENERAL']);
-        countData.push([`Total de registros: ${grandTotal}`]);
-        countData.push([`Tipos monitoreados: ${s.types.length}`]);
-        countData.push([`Sentidos monitoreados: ${s.senses.length}`]);
+        excelData.push([]);
+        excelData.push(['RESUMEN DE CONTEO']);
+        excelData.push([`Total general: ${grandTotal} registros`]);
         
-        const countWs = XLSX.utils.aoa_to_sheet(countData);
+        // --- HISTORIAL ---
+        excelData.push([]);
+        excelData.push([]);
+        excelData.push(['HISTORIAL DE REGISTROS']);
+        excelData.push([]);
         
-        // Ajustar anchos de columna
-        if (countWs['!cols'] === undefined) countWs['!cols'] = [];
-        countWs['!cols'][0] = { wch: 25 };
-        for (let i = 1; i <= s.senses.length + 1; i++) {
-          countWs['!cols'][i] = { wch: 12 };
-        }
-        
-        XLSX.utils.book_append_sheet(wb, countWs, `${s.name.substring(0,25)} Conteo`);
-        
-        // HOJA DE HISTORIAL PARA CADA SECCIÓN
-        const historyData = [
-          [`HISTORIAL DE REGISTROS - ${s.name}`],
-          [`Fecha de generación: ${new Date().toLocaleDateString()}`],
-          [],
-          ['#', 'Tipo', 'Sentido', 'Fecha', 'Hora', 'Timestamp']
-        ];
+        const historyHeader = ['#', 'TIPO', 'SENTIDO', 'FECHA', 'HORA'];
+        excelData.push(historyHeader);
         
         s.records.forEach((record, index) => {
-          historyData.push([
+          excelData.push([
             index + 1,
             record.type,
             record.sense,
             record.date,
-            record.time,
-            new Date(record.ts).toLocaleString()
+            record.time
           ]);
         });
         
-        historyData.push([]);
-        historyData.push(['RESUMEN DEL HISTORIAL']);
-        historyData.push([`Total de registros: ${s.records.length}`]);
-        
-        const historyWs = XLSX.utils.aoa_to_sheet(historyData);
+        const ws = XLSX.utils.aoa_to_sheet(excelData);
         
         // Ajustar anchos de columna
-        if (historyWs['!cols'] === undefined) historyWs['!cols'] = [];
-        historyWs['!cols'][0] = { wch: 8 };
-        historyWs['!cols'][1] = { wch: 20 };
-        historyWs['!cols'][2] = { wch: 12 };
-        historyWs['!cols'][3] = { wch: 12 };
-        historyWs['!cols'][4] = { wch: 10 };
-        historyWs['!cols'][5] = { wch: 20 };
+        if (ws['!cols'] === undefined) ws['!cols'] = [];
+        ws['!cols'][0] = { wch: 25 };
+        for (let i = 1; i <= s.senses.length + 1; i++) {
+          ws['!cols'][i] = { wch: 12 };
+        }
         
-        XLSX.utils.book_append_sheet(wb, historyWs, `${s.name.substring(0,25)} Historial`);
+        XLSX.utils.book_append_sheet(wb, ws, `${s.name.substring(0,25)}`);
       });
       
       XLSX.writeFile(wb, `Reporte_Multisectorial_Completo_${new Date().toISOString().slice(0,10)}.xlsx`);
