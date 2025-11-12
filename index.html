@@ -373,7 +373,7 @@
      * }
      *******************************************/
 
-    const STORAGE_KEY = 'registro_multisectorial_v4';
+    const STORAGE_KEY = 'registro_multisectorial_v3';
 
     // --- Helpers ---
     const uid = () => Math.random().toString(36).slice(2,9);
@@ -482,7 +482,7 @@
       const table = document.createElement('table');
       table.className = 'interactive-table';
       
-      // Crear encabezado (TIPOS en columnas)
+      // Crear encabezado (TIPOS en la parte superior)
       const thead = document.createElement('thead');
       const headerRow = document.createElement('tr');
       
@@ -491,14 +491,14 @@
       emptyHeader.textContent = 'Sentido \\ Tipo';
       headerRow.appendChild(emptyHeader);
       
-      // Encabezados de TIPOS (columnas)
+      // Encabezados de TIPOS (parte superior)
       s.types.forEach(type => {
         const th = document.createElement('th');
         th.textContent = type;
         headerRow.appendChild(th);
       });
       
-      // Total por fila
+      // Total por columna
       const totalHeader = document.createElement('th');
       totalHeader.textContent = 'Total';
       headerRow.appendChild(totalHeader);
@@ -512,7 +512,7 @@
       // Calcular conteos actuales
       const counts = calculateCurrentCounts(s);
       
-      // Filas para cada SENTIDO
+      // Filas para cada SENTIDO (parte lateral)
       s.senses.forEach(sense => {
         const row = document.createElement('tr');
         
@@ -533,7 +533,7 @@
           
           countCell.innerHTML = `
             <div class="cell-value">${count}</div>
-            <div class="cell-label">${sense} · ${type}</div>
+            <div class="cell-label">${type} · ${sense}</div>
           `;
           
           countCell.onclick = () => registerCount(type, sense);
@@ -598,7 +598,7 @@
       interactiveTableContainer.appendChild(table);
     }
 
-    // Calcular conteos actuales
+    // Calcular conteos actuales - CORREGIDA
     function calculateCurrentCounts(section) {
       const counts = {};
       
@@ -894,7 +894,7 @@
       const keys = Object.keys(state.sections);
       state.selectedSectionId = keys.length ? keys[0] : null;
       saveState();
-    }
+    });
 
     // Export CSV for section
     document.getElementById('exportCsvSection').addEventListener('click', ()=> {
@@ -913,9 +913,9 @@
     document.getElementById('downloadJsonSection').addEventListener('click', ()=> {
       const s = getSelected(); if(!s) return;
       downloadSectionJSON(s.id);
-    }
+    });
 
-    // Export section to Excel CORREGIDO
+    // Export section to Excel
     document.getElementById('exportSection').addEventListener('click', ()=> {
       const s = getSelected(); if(!s) return;
       exportSectionToExcel(s);
@@ -962,7 +962,7 @@
       input.click();
     });
 
-    // Export helpers using XLSX - CORREGIDO: Tipos en columnas, Sentidos en filas
+    // Export helpers using XLSX - MEJORADO: Una sola hoja con tabla arriba e historial abajo
     function exportSectionToExcel(s){
       // Crear libro de trabajo
       const wb = XLSX.utils.book_new();
@@ -975,9 +975,8 @@
       excelData.push([`Fecha de generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`]);
       excelData.push([]);
       
-      // --- TABLA DE CONTEO (ARRIBA) - CORREGIDA ---
-      excelData.push(['TABLA DE CONTEO POR SENTIDO Y TIPO']);
-      excelData.push(['SENTIDOS (Filas) × TIPOS (Columnas)']);
+      // --- TABLA DE CONTEO (ARRIBA) ---
+      excelData.push(['TABLA DE CONTEO POR TIPO Y SENTIDO']);
       excelData.push([]);
       
       // Encabezado de la tabla (TIPOS en columnas)
@@ -988,7 +987,7 @@
       const counts = calculateCurrentCounts(s);
       let grandTotal = 0;
       
-      // Filas de SENTIDOS con sus conteos por TIPO
+      // Filas de sentidos con sus conteos
       s.senses.forEach(sense => {
         const row = [sense];
         let rowTotal = 0;
@@ -1004,7 +1003,7 @@
         excelData.push(row);
       });
       
-      // Fila de totales por columna (TIPOS)
+      // Fila de totales por tipo
       const totalsRow = ['TOTAL'];
       s.types.forEach(type => {
         let typeTotal = 0;
@@ -1093,9 +1092,9 @@
       if (ws['!cols'] === undefined) ws['!cols'] = [];
       
       // Ajustar anchos de columna
-      ws['!cols'][0] = { wch: 20 }; // Columna de sentidos
+      ws['!cols'][0] = { wch: 25 }; // Columna de sentidos
       for (let i = 1; i <= s.types.length; i++) {
-        ws['!cols'][i] = { wch: 15 }; // Columnas de tipos
+        ws['!cols'][i] = { wch: 12 }; // Columnas de tipos
       }
       ws['!cols'][s.types.length + 1] = { wch: 12 }; // Columna TOTAL
       
@@ -1127,8 +1126,8 @@
         excelData.push([`Fecha de generación: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`]);
         excelData.push([]);
         
-        // --- TABLA DE CONTEO CORREGIDA ---
-        excelData.push(['TABLA DE CONTEO POR SENTIDO Y TIPO']);
+        // --- TABLA DE CONTEO ---
+        excelData.push(['TABLA DE CONTEO POR TIPO Y SENTIDO']);
         excelData.push([]);
         
         const headerRow = ['SENTIDO \\ TIPO', ...s.types, 'TOTAL'];
@@ -1191,9 +1190,9 @@
         
         // Ajustar anchos de columna
         if (ws['!cols'] === undefined) ws['!cols'] = [];
-        ws['!cols'][0] = { wch: 20 };
+        ws['!cols'][0] = { wch: 25 };
         for (let i = 1; i <= s.types.length + 1; i++) {
-          ws['!cols'][i] = { wch: 15 };
+          ws['!cols'][i] = { wch: 12 };
         }
         
         XLSX.utils.book_append_sheet(wb, ws, `${s.name.substring(0,25)}`);
